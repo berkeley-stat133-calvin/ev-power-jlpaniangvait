@@ -8,27 +8,98 @@ format: typst
 ## **Part 0: libraries**
 
 ```{r}
-
+library(tidyverse)
 ```
 
 ## **Part 1:** **Defining Research Question**
 
-Chosen Question:
+Chosen Question: Which regions or states show the fastest growth in renewable energy use from 2021 to 2023?
 
 ## **Part 2: Data Preparation and Cleaning**
 
 ```{r}
+# Loading in data files
+total_energy_use_2021 <- read_csv("~/Documents/stat133/ev-power-jlpaniangvait/data/total-use-2021.csv")
+total_energy_use_2022 <- read_csv("~/Documents/stat133/ev-power-jlpaniangvait/data/total-use-2022.csv")
+total_energy_use_2023 <- read_csv("~/Documents/stat133/ev-power-jlpaniangvait/data/total-use-2023.csv")
+ev_registrations_by_state <- read_csv("~/Documents/stat133/ev-power-jlpaniangvait/data/ev-registrations-by-state-2023.csv")
+renew_use_2021 <- read_csv("~/Documents/stat133/ev-power-jlpaniangvait/data/renew-use-2021.csv")
+renew_use_2022 <- read_csv("~/Documents/stat133/ev-power-jlpaniangvait/data/renew-use-2022.csv")
+renew_use_2023 <- read_csv("~/Documents/stat133/ev-power-jlpaniangvait/data/renew-use-2023.csv")
+```
 
+```{r}
+# Standardizing variable names to: Coal, Natural Gas, Petroleum, Nuclear, Total Renewable Energy
+# total_energy_use_2021
+total_energy_use_2021$Energy_Source <- sub("Gas.", " Natural Gas", total_energy_use_2021$Energy_Source)
+total_energy_use_2021$Energy_Source <- sub("Petroleum \\(BTU\\)", "Petroleum", total_energy_use_2021$Energy_Source)
+total_energy_use_2021$Energy_Source <- sub("nuclear", "Nuclear", total_energy_use_2021$Energy_Source)
+total_energy_use_2021$Energy_Source <- sub("total_renewable_energy", "Total Renewable Energy", total_energy_use_2021$Energy_Source)
+
+# total_energy_use_2022
+total_energy_use_2022$Energy_Source <- sub("Natural-Gas", "Natural Gas", total_energy_use_2022$Energy_Source)
+total_energy_use_2022$Energy_Source <- sub("petroleum \\(btu\\)", "Petroleum", total_energy_use_2022$Energy_Source)
+total_energy_use_2022$Energy_Source <- sub("Nuclear Energy.", "Nuclear", total_energy_use_2022$Energy_Source)
+total_energy_use_2022$Energy_Source <- sub("total_renewables", "Total Renewable Energy", total_energy_use_2022$Energy_Source)
+total_energy_use_2022$Energy_Source <- sub("coal Consumption", "Coal", total_energy_use_2022$Energy_Source)
+
+# total_energy_use_2023
+total_energy_use_2023$Energy_Source <- sub("NaturalGas", "Natural Gas", total_energy_use_2023$Energy_Source)
+total_energy_use_2023$Energy_Source <- sub("petroleum \\(BTU\\)", "Petroleum", total_energy_use_2023$Energy_Source)
+total_energy_use_2023$Energy_Source <- sub("nuclear-energy +.", "Nuclear", total_energy_use_2023$Energy_Source)
+total_energy_use_2023$Energy_Source <- sub("total renewable-energy", "Total Renewable Energy", total_energy_use_2023$Energy_Source)
+total_energy_use_2023$Energy_Source <- sub("coal_usage", "Coal", total_energy_use_2023$Energy_Source)
+
+# renew_use_2021
+renew_use_2021$Renewable_Use_2021 <- str_extract(renew_use_2021$Renewable_Use_2021, "[0-9]+")
+
+# renew_use_2022
+renew_use_2022$Renewable_Use_2022 <- str_extract(renew_use_2022$Renewable_Use_2022, "[0-9]+")
+
+# renew_use_2023
+renew_use_2023$Renewable_Use_2023 <- str_extract(renew_use_2023$Renewable_Use_2023, "[0-9]+")
 ```
 
 ## **Part 3: Joining / Pivoting Datasets for Analysis**
 
 ```{r}
+full_dataset <- inner_join(renew_use_2021, renew_use_2022)
+full_dataset <- inner_join(full_dataset, renew_use_2023)
 
+full_dataset <- full_dataset |> 
+    mutate(Renewable_Use_2021 = as.numeric(Renewable_Use_2021),
+    Renewable_Use_2022 = as.numeric(Renewable_Use_2023),
+    Renewable_Use_2023 = as.numeric(Renewable_Use_2023))
+
+full_dataset[is.na(full_dataset)] <- 0
+
+head(full_dataset)
+
+year_totals <- full_dataset |> 
+    group_by(State) |>
+    summarize(total_renewable_use_2021 = sum(as.numeric(Renewable_Use_2021)),
+    total_renewable_use_2023 = sum(as.numeric(Renewable_Use_2023)))
+
+head(year_totals)
+    
+total_growth <- year_totals|> 
+    mutate(renewable_use_growth_rate = (total_renewable_use_2023 - total_renewable_use_2021) / total_renewable_use_2021)
+
+head(total_growth)
 ```
 
 ## **Part 4: Mapping Visualization**
 
 ```{r}
+library(sf)
+library(usmap)
 
+total_growth <- total_growth |> rename(state = State)
+
+plot_usmap(data = total_growth, values = "renewable_use_growth_rate", color = "white") +
+  scale_fill_gradient(low = "red", high = "green", name = "Growth Rate") +
+  labs(title = "Renewable Energy Growth Rate by State (2021–2023)") +
+  theme_bw()
 ```
+
+In this map visualization, I only included states that did not have missing data from the years 2021 and 2023. From this map, we can see that California and New Mexico has had the highest growth rate of renewable energy use. On the other hand, there are some states, namely TN, AL, ME, NC, SC, PA, SD, and ND that actually observed a retraction of the amount of renewable energy use from the years 2021 to 2023. From the map, it can also be seen that most of the states with higher growth rate of renewable energy use seems to be located on the West Coast.
